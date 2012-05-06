@@ -6,14 +6,11 @@ prototype, but may be useful in the final product...
 from __future__ import print_function
 
 import cmd
-import re
-
-
-WS = re.compile('\s+')
 
 
 class HarmonyCommand(cmd.Cmd):
-    NEW_ARGS = ('calendar', 'event')
+    CREATE_ARGS = ('calendar', 'event')
+    DELETE_ARGS = ('calendar', 'event')
 
     def __init__(self, *args, **kwargs):
         cmd.Cmd.__init__(self, *args, **kwargs)
@@ -28,14 +25,17 @@ class HarmonyCommand(cmd.Cmd):
     # All the do_* methods take a single argument `arg` that contains any
     # arguments to the command as a single string.
 
-    def do_new(self, arg):
+    def do_create(self, arg):
         '''Create a new calendar or event.'''
+        pass
+
+    def do_delete(self, arg):
+        '''Delete a calendar or event.'''
         pass
 
     def do_list(self, arg):
         '''List events between two dates.'''
-        args = WS.split(arg)
-        print('hello {0}!'.format(args))
+        pass
 
     def do_quit(self, arg):
         '''Quit the interpreter.'''
