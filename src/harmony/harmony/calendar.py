@@ -5,36 +5,36 @@ Functions for processing calendars.
 
 import ConfigParser
 from datetime import datetime
-from os import listdir
+from os import listdir, mkdir
 from os.path import basename, join as path_join, splitext
 from re import compile as re_compile
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from icalendar import Calendar as vCalendar
-from icalendar import Event as vEvent
-from pytz import timezone as pytz_timezone
-from pytz import utc
+from icalendar import Calendar as vCalendar, Event as vEvent
+from pytz import timezone as pytz_timezone, utc
 
 from .. import app
 from .config import CALENDAR_DIRECTORY, CALENDAR_CONFIG
 
 
 REGEX_WS = re_compile(r'\s')
-
-# Calendar cache
-CALENDARS = {}
+NOW = lambda: datetime.now(tz=utc)
 
 
 class Calendar(object):
-    '''A calendar.'''
+    '''A calendar. Calendars are actually made of two components: an entry in
+    the calendars configuration file and a <uuid>.calendar directory in the
+    calendars directory. Thus, a Calender is really just a container for Events,
+    where each event is a file in the Calendar's directory.'''
 
-    DEFAULT_NAME = u'Untitle Calendar'
+    DEFAULT_NAME = u'Untitled Calendar'
 
     def __init__(self, uuid=None, name=None, timezone=None):
         self.uuid = uuid
-        self.name = name
+        self.name = unicode(name)
         self.timezone = pytz_timezone(timezone)
         self.events = {}
+        self._dirty = True
 
     @property
     def directory(self):
@@ -45,16 +45,39 @@ class Calendar(object):
                     'cannot generate directory name'.format(type(self)))
         return path_join(CALENDAR_DIRECTORY, '{}.calendar'.format(self.uuid))
 
+    def __str__(self):
+        return self.name
+
+    def __unicode__(self):
+        return unicode(str(self))
+
+    def __repr__(self):
+        return u"<Calendar '{}'>".format(unicode(self))
+
+    def save(self, force=False):
+        if not self._dirty and not force:
+            return
+        try:
+            mkdir(self.directory)
+        except OSError:
+            pass
+        with open(CALENDAR_CONFIG, 'w') as calendar_config:
+            CONFIG.write(calendar_config)
+        self._dirty = False
+
     def load_events(self):
         '''Read all the events in the calendar's directory and add them to the
         calendar.'''
         for vevent_file in listdir(self.directory):
-            event = Event.create_from_ical_file(vevent_file)
+            full_path = path_join(self.directory, vevent_file)
+            event = Event.create_from_ical_file(self, full_path)
             self.add_event(event)
+        self._dirty = False
 
     def add_event(self, event):
         '''Add an event to this calendar.'''
-        self.events[event.uuid] = event
+        self.events[str(event.uuid)] = event
+        event._calendar = self
 
 
 class Event(object):
@@ -67,46 +90,107 @@ class Event(object):
 
     DEFAULT_SUMMARY = u'Untitled event'
 
-    # Commonly used, but not part of the standard, iCalendar attributes
-    CALNAME = 'X-WR-CALNAME'
-    TIMEZONE = 'X-WR-TIMEZONE'
+    class EventError(RuntimeError):
+        pass
 
-    def __init__(self, uuid=None, summary=None, begin=None, end=None):
+    def __init__(self, uuid=None, summary=None, start=None, end=None):
+        self._calendar = None
+        self._dirty = True
+
         self.uuid = uuid
-
-        self.vcal = vCalendar()
-        self.vcal.add('VERSION', u'2.0')
-        self.vcal.add('PRODID', Event.PRODID)
-        self.vcal.add('CALSCALE', u'GREGORIAN')
-
-        self.vevent = vEvent()
-        self.vevent.add('SUMMARY', unicode(summary)
-                if summary is not None else Event.DEFAULT_SUMMARY)
-
-        self.vevent.add('CREATED', datetime.now(tz=utc))
-        self.vevent.add('DTSTART', begin if begin is not None else
-                        datetime.now(tz=utc))
-        self.vevent.add('DTEND', end if end is not None else
-                        datetime.now(tz=utc))
-
-        self.vcal.add_component(self.vevent)
+        self.summary = summary
+        self.start = start
+        self.end = end
 
     @classmethod
-    def create_from_ical_file(cls, ical_filename):
+    def create_from_ical_file(cls, calendar, ical_filename):
         '''Given a filename, create an Event and return it.'''
-        uuid = splitext(basename(ical_filename))[1]
+        uuid = splitext(basename(ical_filename))[0]
         event = Event(uuid=uuid)
-        event.from_ical(open(ical_filename, 'r').read())
+        with open(ical_filename, 'r') as ical_file:
+            event.from_ical(ical_file.read())
         return event
+
+    def __str__(self):
+        return self.summary
+
+    def __unicode__(self):
+        return unicode(str(self))
+
+    def __repr__(self):
+        return u"<Event '{}'>".format(unicode(self))
 
     @property
     def filename(self):
         '''iCalendar event object filename.'''
-        return '{}.ics'.format(self.uuid)
+        return path_join(self.calendar.directory, '{}.ics'.format(self.uuid))
+
+    @property
+    def summary(self):
+        return str(self.vevent.get('SUMMARY'))
+
+    @summary.setter
+    def summary(self, value):
+        self.vevent.set('SUMMARY', value)
+
+    @property
+    def start(self):
+        return self.vevent.get('DTSTART').dt
+
+    @start.setter
+    def start(self, value):
+        self.vevent.set('DTSTART', value.astimezone(utc))
+
+    @property
+    def end(self):
+        return self.vevent.get('DTEND').dt
+
+    @end.setter
+    def end(self, value):
+        return self.vevent.set('DTEND', value.astimezone(utc))
+
+    def _validate(self):
+        if not isinstance(self.uuid, UUID):
+            raise TypeError('uuid must be a UUID instance')
+        if not isinstance(self.summary, basestring):
+            raise TypeError('summary must be a str or unicode instance')
+        if not isinstance(self.start, datetime):
+            raise TypeError('start must be a datetime instance')
+        if not isinstance(self.end, datetime):
+            raise TypeError('end must be a datetime instance')
+
+    def _clean(self):
+        self.summary = unicode(self.summary)
+        self.start = self.start.astimezone(utc)
+        self.end = self.end.astimezone(utc)
+
+    def save(self, force=False):
+        if not self._dirty and not force:
+            return
+
+        self._validate()
+        self._clean()
+
+        with open(self.filename, 'w') as ical_file:
+            ical_file.write(self.to_ical())
+
+        self._dirty = False
 
     def to_ical(self):
         '''Render this event as an iCalendar object.'''
-        return self.vcal.to_ical()
+        vcal = vCalendar()
+        vcal.add('VERSION', app.ICALENDAR_VERSION)
+        vcal.add('PRODID', Event.PRODID)
+        vcal.add('CALSCALE', 'GREGORIAN')
+
+        vevent = vEvent()
+        vevent.add('CREATED', NOW())
+        vevent.add('SUMMARY', self.summary)
+        vevent.add('DTSTART', self.start)
+        vevent.add('DTEND', self.end)
+        vcal.add_component(self.vevent)
+
+        return vcal.to_ical()
 
     def from_ical(self, ical):
         '''Read an iCalendar object from the passed-in string.'''
@@ -115,9 +199,8 @@ class Event(object):
 
 def create_calendar(name, timezone=None):
     '''Create a new calendar.'''
-    uuid = uuid4()
+    uuid = str(uuid4())
     cal = Calendar(uuid=uuid, name=name, timezone=timezone)
-    CALENDARS[uuid] = cal
     return cal
 
 
@@ -128,11 +211,22 @@ def read_calendar(uuid, name, timezone):
     return cal
 
 
-def load_calendars():
-    '''Read the calendar config file and load all calendars into the cache.'''
+def read_calendars():
+    '''Read the calendar config file and load all calendars found therein. A
+    dictionary mapping UUIDs to Calendar objects is returned.'''
     config = ConfigParser.SafeConfigParser()
-    config.readfp(open(CALENDAR_CONFIG))
+    with open(CALENDARS_CONF) as cals_file:
+        config.readfp(cals_file)
+    calendars = {}
     for uuid in config.sections():
-        CALENDARS[uuid] = read_calendar(uuid=uuid,
-                                        name=config.get(uuid, 'name'),
-                                        timezone=config.get(uuid, 'timezone'))
+        calendars[uuid] = read_calendar(uuid=uuid,
+                                        name=CONFIG.get(uuid, 'name'),
+                                        timezone=CONFIG.get(uuid, 'timezone'))
+    return calendars
+
+
+def create_event(calendar, summary, start, end):
+    '''Create a new event in the specified calendar.'''
+    ev = Event(uuid=str(uuid4()), start=start, end=end)
+    calendar.add_event(ev)
+    return ev
