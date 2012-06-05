@@ -93,10 +93,10 @@ def parse_create_stmt(tokens):
         stmt['type'] = 'event'
         if expect_peek(LITERAL, tokens):
             stmt['name'] = tokens.pop(0)
-        expect(IN, tokens)
-        expect(CALENDAR, tokens)
-        if expect_peek(LITERAL, tokens):
-            stmt['calendar'] = tokens.pop(0)
+        if accept(IN, tokens):
+            expect(CALENDAR, tokens)
+            if expect_peek(LITERAL, tokens):
+                stmt['calendar'] = tokens.pop(0)
         if expect(FROM, tokens):
             stmt['from'] = parse_time_clause(tokens)
         if accept(UNTIL, tokens):
