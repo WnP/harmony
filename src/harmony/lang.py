@@ -245,8 +245,11 @@ def analyze(stmt):
     fmt = 'analyze_{0[action]}'
     if 'type' in stmt:
         fmt += '_{0[type]}'
-    analyze_func = globals()[fmt.format(stmt)]
-    return analyze_func(stmt)
+    analyze_func = globals().get(fmt.format(stmt))
+    if analyze_func:
+        return analyze_func(stmt)
+    else:
+        return stmt
 
 
 def analyze_create_calendar(calendar):
@@ -263,18 +266,6 @@ def analyze_create_event(event):
     if 'for' in event:
         event['for'] = get_duration(event['for'])
     return event
-
-
-def analyze_list_event(list_criteria):
-    return list_criteria
-
-
-def analyze_list_calendar(list_criteria):
-    return list_criteria
-
-
-def analyze_quit(criteria):
-    return criteria
 
 
 #
