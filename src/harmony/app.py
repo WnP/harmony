@@ -51,15 +51,49 @@ class HarmonyApp(object):
         cal.add_event(ev)
 
 
+class Setting(object):
+    '''A setting.'''
+
+    def __init__(self, default=None, typ=None):
+        self.default = default
+        self.typ = typ
+
+    def validate(self, new_value):
+        if isinstance(new_value, self.typ):
+            return True
+        return False
+
+    def transform(self, new_value):
+        return new_value
+
+
+class StringSetting(Setting):
+    '''A setting field to hold a [unicode] string.'''
+
+    def __init__(self, default=''):
+        super(StringSetting, self).__init__(default, basestring)
+
+    def transform(self, new_value):
+        return unicode(new_value)
+
+
+class TimezoneSetting(StringSetting):
+    '''A setting field to hold a timezone.'''
+
+    def transform(self, new_value):
+        new_value = super(TimezoneSetting, self).transform(new_value)
+        return pytz_timezone(new_value)
+
+
 class HarmonySettings(object):
     '''
     A class to store all of the settings for the current run of Harmony.
     '''
 
-    realname = {'type': str}
-    timezone = {'type': str,
-                'transform': pytz_timezone,
-                'default': 'US/Pacific'}
+    # The user's real name
+    realname = StringSetting()
+    # The user's timezone
+    timezone = TimezoneSetting(default='UTC')
 
     def __new__(cls, *args, **kwargs):
         new_settings = super(HarmonySettings, cls).__new__(cls, *args, **kwargs)
@@ -74,14 +108,14 @@ class HarmonySettings(object):
         return new_settings
 
     def __setattr__(self, name, value):
-        desc = self._settings[name]
-        if not isinstance(value, desc['type']):
+        desc = self._settings
+        if value is None:
+            value = desc.default
+        if not desc.validate(value):
             raise ValueError("Invalid type ({}) for setting '{}'; "
                              "expected {}".format(type(value).__name__, name,
-                                                  desc['type'].__name__))
-        tr = desc.get('transform')
-        if tr is not None:
-            value = tr(value)
+                                                  desc.typ))
+        value = desc.transform(value)
         super(HarmonySettings, self).__setattr__(name, value)
 
 
