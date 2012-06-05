@@ -16,13 +16,6 @@ import lang
 
 
 class HarmonyCmd(cmd.Cmd):
-    CREATE_ARGS = ('calendar', 'event')
-    DELETE_ARGS = ('calendar', 'event')
-    LIST_ARGS = ('calendars', 'events')
-
-    DATE_FMTS = ('%Y-%m-%d',)
-    TIME_FMTS = ('%H:%M',)
-
     def __init__(self, *args, **kwargs):
         cmd.Cmd.__init__(self, *args, **kwargs)
         self.prompt = 'harmony> '
@@ -36,9 +29,10 @@ class HarmonyCmd(cmd.Cmd):
     def parseline(self, line):
         '''More or less an exact copy of cmd.Cmd's implementation of this
         method, except run the line through Harmony's lang module. The tuple
-        returned by this implementation is (cmd, args, line) where cmd is the
-        name of the command, args is the dictionary returned from
-        lang.process_line, and line is a string representation of the lin.'''
+        returned by this implementation is (cmd, args, line), the same as
+        super's, where cmd is the name of the command, args is the dictionary
+        returned from lang.process_line, and line is a string representation of
+        the line.'''
         line = line.strip()
         if not line:
             return None, None, line
@@ -53,9 +47,6 @@ class HarmonyCmd(cmd.Cmd):
         while i < n and line[i] in self.identchars: i+= 1
         cmd, args = line[:i], lang.process_line(line)
         return cmd, args, line
-
-    # All the do_* methods take a single argument `arg` that contains any
-    # arguments to the command as a single string.
 
     def do_create(self, args):
         '''Create a new calendar or event.'''
