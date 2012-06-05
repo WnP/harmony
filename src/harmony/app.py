@@ -35,13 +35,17 @@ class HarmonyApp(object):
 
     def __init__(self):
         self.calendars = {}
+        self.default_calendar = None
 
-    def create_calendar(self, name, timezone=None):
+    def create_calendar(self, name, timezone=None, default=False):
         if timezone == None:
             # TODO: Get it from the configuration or the system.
             pass
-        cal = Calendar.create(name=str(name), timezone=timezone)
+        cal = Calendar.create(name=str(name), timezone=timezone,
+                              default=default)
         self.calendars[cal.pk] = cal
+        if default:
+            self.default_calendar = cal
 
     def create_event(self, summary, calendar, start, end):
         cal = self.calendars.get(calendar_id)

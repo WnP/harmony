@@ -38,7 +38,8 @@ class Calendar(PersistableObject):
 
     DEFAULT_NAME = u'Untitled Calendar'
 
-    def __init__(self, name=DEFAULT_NAME, timezone=None, **kwargs):
+    def __init__(self, name=DEFAULT_NAME, timezone=None, default=False,
+                 **kwargs):
         '''
         @param name: Name of this calendar (str)
         @param timezone: Timezone of this calendar (str)
@@ -46,6 +47,7 @@ class Calendar(PersistableObject):
         super(Calendar, self).__init__(**kwargs)
         self.name = name
         self.timezone = timezone
+        self.default = default
         self._events = []
 
     def __unicode__(self):
