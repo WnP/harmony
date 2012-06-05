@@ -20,6 +20,7 @@ AT = _keyword('AT')
 CREATE = _keyword('CREATE')
 CALENDAR = _keyword('CALENDAR')
 CALENDARS = _keyword('CALENDARS')
+DEFAULT = _keyword('DEFAULT')
 EQUAL = _keyword('=')
 EVENT = _keyword('EVENT')
 EVENTS = _keyword('EVENTS')
@@ -75,8 +76,13 @@ def parse(tokens):
 
 def parse_create_stmt(tokens):
     stmt = {'action': 'create'}
+    default = False
+    if accept(DEFAULT, tokens):
+        default = True
+        expect_peek(CALENDAR, tokens):
     if accept(CALENDAR, tokens):
         stmt['type'] = 'calendar'
+        stmt['default'] = default
         if expect_peek(LITERAL, tokens):
             stmt['name'] = tokens.pop(0)
         try:
