@@ -79,7 +79,7 @@ def parse_create_stmt(tokens):
     default = False
     if accept(DEFAULT, tokens):
         default = True
-        expect_peek(CALENDAR, tokens):
+        expect_peek(CALENDAR, tokens)
     if accept(CALENDAR, tokens):
         stmt['type'] = 'calendar'
         stmt['default'] = default
