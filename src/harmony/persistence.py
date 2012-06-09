@@ -8,6 +8,31 @@ handles that stuff.
 db = None
 
 
+class EventSQLiteOptions(object):
+    table = 'event'
+
+    fields = {
+        'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+        'summary': "TEXT NOT NULL DEFAULT ''",
+        'start': 'TEXT NOT NULL',
+        'end': 'TEXT NOT NULL',
+        'start_timezone': "timezone NOT NULL DEFAULT ''",
+        'end_timezone': "timezone NOT NULL DEFAULT ''",
+        'all_day': 'INTEGER NOT NULL DEFAULT 0',
+        'calendar': 'INTEGER REFERENCES "calendar"("id")',
+    }
+
+
+class CalendarSQLiteOptions(object):
+    table = 'calendar'
+
+    fields = {
+        'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
+        'name': 'TEXT UNIQUE NOT NULL',
+        'timezone': "timezone NOT NULL DEFAULT ''",
+        'is_default': 'INTEGER NOT NULL DEFAULT 0',
+    }
+
 
 
 
