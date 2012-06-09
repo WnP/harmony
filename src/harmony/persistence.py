@@ -8,14 +8,28 @@ handles that stuff.
 db = None
 
 
+################################################################################
+## LOW LEVEL PERSISTENCE
+
+
+def initialize_sqlite(dbpath):
+    '''Create a database instance and connect to the specified file.
+
+    @param dbpath: Path to a SQLite database file. (str)
+    '''
+    global db
+    db = SQLiteDatabase()
+    db.connect(dbpath)
+
+
 class EventSQLiteOptions(object):
     table = 'event'
 
     fields = {
         'id': 'INTEGER PRIMARY KEY AUTOINCREMENT',
         'summary': "TEXT NOT NULL DEFAULT ''",
-        'start': 'TEXT NOT NULL',
-        'end': 'TEXT NOT NULL',
+        'start': 'timestamp NOT NULL',
+        'end': 'timestamp NOT NULL',
         'start_timezone': "timezone NOT NULL DEFAULT ''",
         'end_timezone': "timezone NOT NULL DEFAULT ''",
         'all_day': 'INTEGER NOT NULL DEFAULT 0',
@@ -34,22 +48,6 @@ class CalendarSQLiteOptions(object):
     }
 
 
-
-
-################################################################################
-## LOW LEVEL PERSISTENCE
-
-
-def initialize_sqlite(dbpath):
-    '''Create a database instance and connect to the specified file.
-
-    @param dbpath: Path to a SQLite database file. (str)
-    '''
-    global db
-    db = SQLiteDatabase()
-    db.connect(dbpath)
-
-
 class SQLiteDatabase(object):
     '''SQLite storage bridge.'''
 
@@ -66,7 +64,7 @@ class SQLiteDatabase(object):
     def __init__(self):
         self.db = None
 
-    def connect(dbpath):
+    def connect(self, dbpath):
         '''Connect to a SQLite database.
 
         @param dbpath: Path to a SQLite file. (str)
@@ -75,7 +73,7 @@ class SQLiteDatabase(object):
         self.db = sqlite3.connect(dbpath)
 
 
-    def _execute(sql, values=None):
+    def _execute(self, sql, values=None):
         '''Execute a SQL query. SQL should use qmark or :keyword style, and
         provide its values as either a list or dict.
 
@@ -92,7 +90,7 @@ class SQLiteDatabase(object):
         return self.db.execute(*args)
 
 
-    def _build_binary_expn(field_and_operator):
+    def _build_binary_expn(self, field_and_operator):
         '''Build a qmark'd binary expression.
 
         The incoming {field_and_operator} argument should be a column name with
@@ -111,7 +109,7 @@ class SQLiteDatabase(object):
         return '"{}" {} ?'.format(field, OPERATORS[operator])
 
 
-    def _build_where_clause(criteria_keys):
+    def _build_where_clause(self, criteria_keys):
         '''Build a WHERE clause.
 
         The incoming {criteria_keys} argument should be a list of
@@ -126,7 +124,7 @@ class SQLiteDatabase(object):
         return 'WHERE {}'.format(' AND '.join(criteria_expns))
 
 
-    def create_table(table, columns, create_if_not_exists=True):
+    def create_table(self, table, columns, create_if_not_exists=True):
         '''Build and execute a CREATE TABLE query.
 
         @param table: Table name. (str)
@@ -148,7 +146,7 @@ class SQLiteDatabase(object):
         _execute(sql)
 
 
-    def insert(table, values):
+    def insert(self, table, values):
         '''Build and execute an INSERT query.
 
         @param table: Table name. (str)
@@ -164,7 +162,7 @@ class SQLiteDatabase(object):
         return _execute(sql, values.values()).rowcount > 0
 
 
-    def select(table, criteria=None):
+    def select(self, table, criteria=None):
         '''Build and execute a SELECT query.
 
         @param table: Table name. (str)
@@ -185,7 +183,7 @@ class SQLiteDatabase(object):
         return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
-    def update(table, values, criteria=None):
+    def update(self, table, values, criteria=None):
         '''Build and execute an UPDATE query.
 
         @param table: Table name. (str)
@@ -208,7 +206,7 @@ class SQLiteDatabase(object):
         return _execute(sql, qmark_values).rowcount
 
 
-    def delete(table, criteria=None):
+    def delete(self, table, criteria=None):
         '''Build and execute a DELETE query.
 
         Be careful! If you don't give this function a value for the {criteria},
