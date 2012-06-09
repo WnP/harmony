@@ -42,15 +42,15 @@ class TimezoneSetting(StringSetting):
 class BooleanSetting(Setting):
     '''A boolean value.'''
 
-    YES_VALUES = (u'yes', u'true', u'1', 1, True)
-    NO_VALUES = (u'no', u'false', u'0', 0, False)
+    YES_VALUES = ('yes', 'true', '1', 1, True)
+    NO_VALUES = ('no', 'false', '0', 0, False)
 
     def __init__(self, default=False):
         super(BooleanSetting, self).__init__(default)
 
     def validate(self, new_value):
         if isinstance(new_value, basestring):
-            new_value = unicode(new_value.lower())
+            new_value = new_value.lower()
         return new_value in (BooleanSetting.YES_VALUES
                              + BooleanSetting.NO_VALUES)
 
