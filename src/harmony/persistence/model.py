@@ -3,9 +3,12 @@ Model layer. Provides the infrastructure for defining models and fields and
 converting Python data to SQLite data.
 '''
 
+from types import FunctionType
 
 from datetime import datetime
 from pytz import timezone as pytz_timezone
+
+from . import db
 
 
 class Field(object):
@@ -18,7 +21,6 @@ class Field(object):
         self.default = default
         self.unique = unique
 
-    @classmethod
     def to_sql(self, value):
         '''Convert {value} into a representation that can be plugged into a
         SQL query. This method should probably be overridden by subclasses.
@@ -28,25 +30,33 @@ class Field(object):
         '''
         return self.adapt(value)
 
-    @classmethod
     def adapt(self, value):
         '''A SQLite adapter function to convert {value} to a SQLite type. This
-        method shoud probably be overridden by subclasses.
+        method should not be overridden by subclasses; instead, write an _adapt
+        method that this method will call, if it exists.
 
         @param value: Value to adapt (object)
         @returns: A unicode string representation of the object (unicode)
         '''
+        if value is None:
+            return u'null'
+        if hasattr(self, '_adapt'):
+            return self._adapt(value)
         return unicode(value)
 
-    @classmethod
     def convert(self, value):
         '''A SQLite converter function to convert {value} from a string
-        (produced by the sqlite3 module) to a Python type. This method shoud
-        probably be overridden by subclasses.
+        (produced by the sqlite3 module) to a Python type. This method should
+        not be overridden by subclasses; instead, write a _convert method that
+        this method will call, if it exists.
 
         @param value: Value to convert (str)
         @returns: A Python object (object)
         '''
+        if value is 'null':
+            return None
+        if hasattr(self, value):
+            return self._convert(value)
         return unicode(value)
 
     @property
@@ -71,12 +81,10 @@ class IntegerField(Field):
 
     column_type = 'INTEGER'
 
-    @classmethod
-    def adapt(self, value):
+    def _adapt(self, value):
         return unicode(int(value))
 
-    @classmethod
-    def convert(self, value):
+    def _convert(self, value):
         return int(value)
 
 
@@ -88,8 +96,7 @@ class BooleanField(IntegerField):
     YES_STR_VALUES = ('yes', 'true', '1')
     NO_STR_VALUES = ('no', 'false', '0')
 
-    @classmethod
-    def adapt(self, value):
+    def _adapt(self, value):
         if isinstance(value, basestring):
             value = value.lower()
             # {YES,NO}_STR_VALUES are the accepted true and false values for
@@ -103,10 +110,9 @@ class BooleanField(IntegerField):
             bool_value = 1
         else:
             bool_value = 0
-        return super(BooleanField, self).adapt(bool_value)
+        return super(BooleanField, self)._adapt(bool_value)
 
-    @classmethod
-    def convert(self, value):
+    def _convert(self, value):
         if isinstance(value, basestring):
             if value in YES_STR_VALUES:
                 return True
@@ -125,16 +131,13 @@ class TextField(Field):
         if self.default is None and not self.null:
             self.default = ''
 
-    @classmethod
     def to_sql(self, value):
         return u"'{}'".format(self.adapt(value))
 
-    @classmethod
-    def adapt(self, value):
+    def _adapt(self, value):
         return unicode(value)
 
-    @classmethod
-    def convert(self, value):
+    def _convert(self, value):
         return unicode(value)
 
 
@@ -146,7 +149,6 @@ class TimezoneField(TextField):
     # TODO: Create mapping of system timezone values ('PDT', 'PST', etc) to
     # tzinfo.
 
-    @classmethod
     def convert(self, value):
         return pytz_timezone(value)
 
@@ -158,14 +160,12 @@ class DateTimeField(Field):
 
     STORAGE_FORMAT = '%Y-%m-%d %H:%M:%s%z'
 
-    @classmethod
-    def adapt(self, value):
+    def _adapt(self, value):
         # The isoformat conversion is equivalent to str(value), but I wanted to
         # be explicit.
         return unicode(value.strptime(DateTimeField.STORAGE_FORMAT))
 
-    @classmethod
-    def convert(self, value):
+    def _convert(self, value):
         return datetime.strftime(value, DateTimeField.STORAGE_FORMAT)
 
 
@@ -185,7 +185,7 @@ class ForeignKeyField(IntegerField):
         return '{} REFERENCES "{}"'.format(spec, self.reference._meta.table)
 
 
-class ModelMetaOptions(object):
+class ModelOptions(object):
     def __init__(self):
         self.table = ''
         self.fields = {}
@@ -194,29 +194,26 @@ class ModelMetaOptions(object):
 class ModelMeta(type):
     '''Builds models, the way metaclasses do.'''
 
-    def __new__(meta, name, bases, attrs):
-        metaopts = ModelMetaOptions()
+    def __new__(cls, name, bases, attrs):
         # Only do this for subclasses, not for the Model superclass itself
-        if name != 'Model':
-            attrs['id'] = IntegerField(primary_key=True)
-            metaopts.table = name.lower()
-            for attr, value in attrs.items():
-                if not isinstance(value, Field):
-                    continue
-                self.process_field(attr, value, attrs, metaopts)
-        attrs['_meta'] = metaopts
-        return type.__new__(meta, name, bases, attrs)
+        parents = [b for b in bases if isinstance(b, ModelMeta)]
+        if not parents:
+            return super(ModelMeta, cls).__new__(cls, name, bases, attrs)
 
-    def process_field(self, name, field, attrs, meta):
-        if isinstance(value, ForeignKeyField):
-            self.process_foreign_key(key, value, attrs, metaopts)
-        else:
-            meta.fields[name] = field
-            attrs[name] = None
+        new_class = super(ModelMeta, cls).__new__(cls, name, bases, attrs)
+        # Add a primary key field
+        attrs['id'] = IntegerField(primary_key=True)
+        opts = ModelOptions()
+        opts.table = name.lower()
+        for name, value in attrs.items():
+            if not isinstance(value, Field):
+                continue
+            new_class.process_field(name, value, attrs, opts)
+        attrs['_meta'] = opts
+        return type.__new__(cls, name, bases, attrs)
 
-    def process_foreign_key(self, name, field, attrs, meta):
-        # TODO: Work this out.
-        meta.fields[name + '_id'] = field
+    def process_field(cls, name, field, attrs, opts):
+        opts.fields[name] = field
         attrs[name] = None
 
 
@@ -231,3 +228,25 @@ class Model(object):
 
     def __str__(self):
         return str(unicode(self))
+
+    def save(self):
+        table = self._meta.table
+        fields = {}
+        for name, field in self._meta.fields.items():
+            field_value = getattr(self, name)
+            if field_value is None:
+                field_value = field.default
+            if isinstance(field, ForeignKeyField) and field_value is not None:
+                field_value = field_value.id
+            fields[name] = field.to_sql(field_value)
+
+        # INSERT or UPDATE; algorithm copied from Django
+        # If id is not None, do a SELECT to see if the record exists. If so, do
+        # an UPDATE. Otherwise, do an INSERT.
+        if self.id is not None:
+            id_sql = fields['id']
+            rows = db.db.select(table, {'id': id_sql})
+            if len(rows) > 0:
+                db.db.update(table, fields, {'id': id_sql})
+                return
+        db.db.insert(table, fields)
