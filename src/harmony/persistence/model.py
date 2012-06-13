@@ -28,6 +28,8 @@ class Field(object):
         @param value: Value to transform (object)
         @returns: The transformed value (object)
         '''
+        if value is None:
+            return u'null'
         return self.adapt(value)
 
     def adapt(self, value):
@@ -38,8 +40,6 @@ class Field(object):
         @param value: Value to adapt (object)
         @returns: A unicode string representation of the object (unicode)
         '''
-        if value is None:
-            return u'null'
         if hasattr(self, '_adapt'):
             return self._adapt(value)
         return unicode(value)
