@@ -3,7 +3,7 @@ cli: setup
 	../env/bin/python -m harmony.cli
 
 test: setup
-	env/bin/nosetests -w src/test
+	env/bin/nosetests -w src test
 
 setup:
 	virtualenv env
