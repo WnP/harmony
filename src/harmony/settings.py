@@ -55,6 +55,10 @@ class BooleanSetting(Setting):
                              + BooleanSetting.NO_VALUES)
 
     def transform(self, new_value):
+        try:
+            new_value = new_value.lower()
+        except:
+            pass
         if new_value in BooleanSetting.YES_VALUES:
             return True
         if new_value in BooleanSetting.NO_VALUES:
