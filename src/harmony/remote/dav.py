@@ -33,18 +33,10 @@ class CalDAVClient(object):
         options = dict(r.headers)
         options['allow'] = [field.strip().upper() for field in r.headers['allow'].split(',')]
         options['dav'] = [field.strip().lower() for field in r.headers['dav'].split(',')]
-        if 'PROPFIND' not in allow_header:
+        if 'PROPFIND' not in options['allow']:
             return None
-        if 'calendar-access' not in dav_header:
+        if 'calendar-access' not in options['dav']:
             return None
-        try:
-            options['date'] = datetime.datetime.fromtimestamp(options['date'])
-        except KeyError:
-            pass
-        try:
-            options['expires'] = datetime.datetime.fromtimestamp(options['expires'])
-        except KeyError:
-            pass
         return options
 
     def fetch_calendar_descriptors(self):
@@ -53,7 +45,7 @@ class CalDAVClient(object):
         '''
         r = requests.request('PROPFIND', str(self.url), **self._requests_kwargs())
         r.raise_for_status()
-        return CalDAVRootParser.parse(r.content)
+        return RootParser.parse(r.content)
 
 
 
@@ -73,7 +65,7 @@ class CalendarDescriptor(object):
         self.description = kwargs.get('description')
 
 
-class CalDAVRootParser(object):
+class RootParser(object):
     '''
     Parser for the root of the CalDAV collection.
     '''
@@ -105,7 +97,7 @@ class CalDAVRootParser(object):
 
     def _split_namespace(self, name):
         try:
-            ns, tag = name.split(':')
+            ns, tag = name.split(':', 1)
         except ValueError:
             ns = ''
             tag = name
