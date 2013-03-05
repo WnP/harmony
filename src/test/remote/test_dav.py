@@ -7,7 +7,17 @@ import harmony.remote.dav as dav
 
 
 class TestCalDAVClient(unittest.TestCase):
-    pass
+    def setUp(self):
+        self.client = dav.CalDAVClient()
+
+    def test_empty_requests_kwargs(self):
+        kwargs = self.client._requests_kwargs()
+        self.assertFalse('auth' in kwargs)
+
+    def test_requests_kwargs(self):
+        self.client.auth = ('foo', 'bar')
+        kwargs = self.client._requests_kwargs()
+        self.assertTrue('auth' in kwargs)
 
 
 class TestRootParser(unittest.TestCase):
